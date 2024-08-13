@@ -21,6 +21,7 @@ import (
 type Settings struct {
 	Webhook string
 	Status  string
+	Card    string
 }
 
 // Validate handles the settings validation of the plugin.
@@ -46,6 +47,71 @@ func (p *Plugin) Validate() error {
 
 // Execute provides the implementation of the plugin.
 func (p *Plugin) Execute() error {
+
+	isAdaptiveCard := strings.ToLower(p.settings.Card) == "adaptive"
+
+	var card interface{}
+	if isAdaptiveCard {
+		card = CreateAcaptiveCard(p)
+
+	} else {
+		card = CreateMessageCard(p)
+	}
+
+	log.Info("Generated card: ", card)
+
+	// MS teams webhook post
+	jsonValue, _ := json.Marshal(card)
+	_, err := http.Post(p.settings.Webhook, "application/json", bytes.NewBuffer(jsonValue))
+	if err != nil {
+		log.Error("Failed to send request to teams webhook")
+		return err
+	}
+	return nil
+}
+
+// Create post data for AdaptiveCard
+func CreateAcaptiveCard(p *Plugin) WebhookContent {
+
+	template := "## Drone " + p.pipeline.Repo.Slug +
+		"\n" +
+		"\n* Build Number :" + fmt.Sprintf("%d", p.pipeline.Build.Number) +
+		"\n* Build Status: " + p.settings.Status +
+		"\n* Drone Link: " + p.pipeline.Build.Link +
+		"\n* Commit Link :" + GetCommitLink(p) +
+		""
+
+	// Create rich message card body
+	card := WebhookContent{
+		Attachments: []AdaptiveCard{{
+			ContentType: "application/vnd.microsoft.card.adaptive",
+			Content: AdaptiveCardContent{
+				Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
+				Type:    "AdaptiveCard",
+				Version: "1.4",
+				Body: []AdaptiveCardBody{{
+					Type: "TextBlock",
+					Text: template,
+					Wrap: true,
+				}},
+			},
+		}},
+	}
+	return card
+}
+
+// If commit link is not null add commit link fact to card
+func GetCommitLink(p *Plugin) string {
+	if p.pipeline.Commit.Link != "" {
+		return p.pipeline.Commit.Link
+	} else if cl, present := os.LookupEnv("DRONE_COMMIT_LINK"); present && cl != "" {
+		return cl
+	}
+	return ""
+}
+
+// Create post data for MessageCard
+func CreateMessageCard(p *Plugin) MessageCard {
 
 	// Default card color is green
 	themeColor := "96FF33"
@@ -137,15 +203,5 @@ func (p *Plugin) Execute() error {
 			Facts:            facts,
 		}},
 	}
-
-	log.Info("Generated card: ", card)
-
-	// MS teams webhook post
-	jsonValue, _ := json.Marshal(card)
-	_, err := http.Post(p.settings.Webhook, "application/json", bytes.NewBuffer(jsonValue))
-	if err != nil {
-		log.Error("Failed to send request to teams webhook")
-		return err
-	}
-	return nil
+	return card
 }

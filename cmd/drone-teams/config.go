@@ -25,5 +25,11 @@ func settingsFlags(settings *plugin.Settings) []cli.Flag {
 			EnvVars:     []string{"PLUGIN_STATUS"},
 			Destination: &settings.Status,
 		},
+		&cli.StringFlag{
+			Name:        "card",
+			Usage:       "'adaptive' or 'message'. select card format AdaptiveCard (new format) or MessageCard (old format). MessageCard is default.",
+			EnvVars:     []string{"PLUGIN_CARD"},
+			Destination: &settings.Card,
+		},
 	}
 }

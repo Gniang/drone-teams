@@ -72,14 +72,11 @@ func (p *Plugin) Execute() error {
 
 // Create post data for AdaptiveCard
 func CreateAcaptiveCard(p *Plugin) WebhookContent {
-
-	template := "## Drone " + p.pipeline.Repo.Slug +
-		"\n" +
-		"\n* Build Number :" + fmt.Sprintf("%d", p.pipeline.Build.Number) +
-		"\n* Build Status: " + p.settings.Status +
-		"\n* Drone Link: " + p.pipeline.Build.Link +
-		"\n* Commit Link :" + GetCommitLink(p) +
-		""
+	auther := fmt.Sprintf("%s (%s)", p.pipeline.Commit.Author, p.pipeline.Commit.Author.Email)
+	style := "default"
+	if p.pipeline.Build.Status == "failure" {
+		style = "attention"
+	}
 
 	// Create rich message card body
 	card := WebhookContent{
@@ -89,10 +86,15 @@ func CreateAcaptiveCard(p *Plugin) WebhookContent {
 				Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
 				Type:    "AdaptiveCard",
 				Version: "1.4",
-				Body: []AdaptiveCardBody{{
-					Type: "TextBlock",
-					Text: template,
-					Wrap: true,
+				Body: []CardContainer{{
+					Type:  "Container",
+					Style: style,
+					Items: []CardColumnSet{
+						CreateNameValueLabel("Build Status", p.settings.Status),
+						CreateNameValueLabel("URL", ToUrlMarkdown(p.pipeline.Build.Link)),
+						CreateNameValueLabel("Branch", p.pipeline.Commit.Branch),
+						CreateNameValueLabel("Auther", auther),
+					},
 				}},
 			},
 		}},
@@ -100,7 +102,40 @@ func CreateAcaptiveCard(p *Plugin) WebhookContent {
 	return card
 }
 
-// If commit link is not null add commit link fact to card
+func ToUrlMarkdown(url string) string {
+	return fmt.Sprintf("[%s](%s)", url, url)
+}
+
+func CreateNameValueLabel(name string, value string) CardColumnSet {
+	return CardColumnSet{
+		Type: "ColumnSet",
+		Columns: []CardColumn{
+			{
+				Type:                     "Column",
+				Width:                    "auto",
+				VerticalContentAlignment: "Center",
+				HorizontalAlignment:      "Left",
+				Items: []CardTextBlock{{
+					Type: "TextBlock",
+					Text: name,
+					Wrap: true,
+				}},
+			},
+			{
+				Type:                     "Column",
+				Width:                    "stretch",
+				VerticalContentAlignment: "Center",
+				HorizontalAlignment:      "Left",
+				Items: []CardTextBlock{{
+					Type: "TextBlock",
+					Text: value,
+					Wrap: true,
+				}},
+			}},
+	}
+}
+
+// If commit link is not null add commit link
 func GetCommitLink(p *Plugin) string {
 	if p.pipeline.Commit.Link != "" {
 		return p.pipeline.Commit.Link

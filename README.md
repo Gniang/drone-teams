@@ -1,4 +1,25 @@
-[![Build Status](https://cloud.drone.io/api/badges/jdamata/drone-teams/status.svg)](https://cloud.drone.io/jdamata/drone-teams)
+
+
+drone-teams is developed by Joel Damata.  
+https://github.com/jdamata/drone-teams
+
+It's added support for the AdaptiveCard format.
+
+### Drone Pipeline Usage
+
+```yaml
+- name: teams-webhook
+  image: gniang/drone-teams
+  settings:
+    webhook: <WEBHOOK ENDPOINT>
+    card: "adaptive"
+```
+
+---
+
+====================================== Original Readme ======================================
+
+
 # drone-teams
 
 Drone plugin to send teams notifications for build status

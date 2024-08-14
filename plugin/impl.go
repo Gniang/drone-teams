@@ -24,6 +24,9 @@ type Settings struct {
 	Card    string
 }
 
+type JsonObj map[string]interface{}
+type JsonArray []interface{}
+
 // Validate handles the settings validation of the plugin.
 func (p *Plugin) Validate() error {
 	// Verify the webhook endpoint
@@ -58,10 +61,10 @@ func (p *Plugin) Execute() error {
 		card = CreateMessageCard(p)
 	}
 
-	log.Info("Generated card: ", card)
+	jsonValue, _ := json.Marshal(card)
+	log.Info("Generated card: ", string(jsonValue))
 
 	// MS teams webhook post
-	jsonValue, _ := json.Marshal(card)
 	_, err := http.Post(p.settings.Webhook, "application/json", bytes.NewBuffer(jsonValue))
 	if err != nil {
 		log.Error("Failed to send request to teams webhook")
@@ -73,9 +76,25 @@ func (p *Plugin) Execute() error {
 // Create post data for AdaptiveCard
 func CreateAcaptiveCard(p *Plugin) WebhookContent {
 	auther := fmt.Sprintf("%s (%s)", p.pipeline.Commit.Author, p.pipeline.Commit.Author.Email)
-	style := "default"
+
+	droneUrlReplacer := strings.NewReplacer(p.pipeline.System.Host, "", "http://", "", "https://", "")
+	droneBuildUrl := droneUrlReplacer.Replace(p.pipeline.Build.Link)
+
+	tagOrBranch := ""
+	if p.pipeline.Build.Branch != "" {
+		tagOrBranch = p.pipeline.Build.Branch
+	} else if p.pipeline.Build.Tag != "" {
+		tagOrBranch = p.pipeline.Build.Tag
+	}
+
+	summaryMessage := fmt.Sprintf("*%s* %s (%s) by %s", p.pipeline.Build.Status, droneBuildUrl, tagOrBranch, auther)
+
+	const blueImageBase64 = "data:image/gif;base64,R0lGODlhCAABAIABAACZ/wacDywAAAAACAABAAACA4RvBQA7"
+	const redImageBase64 = "data:image/gif;base64,R0lGODlhCAABAIABAP8AAAacDywAAAAACAABAAACA4RvBQA7"
+
+	statusColorUrl := blueImageBase64
 	if p.pipeline.Build.Status == "failure" {
-		style = "attention"
+		statusColorUrl = redImageBase64
 	}
 
 	// Create rich message card body
@@ -86,52 +105,135 @@ func CreateAcaptiveCard(p *Plugin) WebhookContent {
 				Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
 				Type:    "AdaptiveCard",
 				Version: "1.4",
-				Body: []CardContainer{{
-					Type:  "Container",
-					Style: style,
-					Items: []CardColumnSet{
-						CreateNameValueLabel("Build Status", p.settings.Status),
-						CreateNameValueLabel("URL", ToUrlMarkdown(p.pipeline.Build.Link)),
-						CreateNameValueLabel("Branch", p.pipeline.Commit.Branch),
-						CreateNameValueLabel("Auther", auther),
+				Body: JsonArray{
+					JsonObj{
+						"type": "ColumnSet",
+						"columns": JsonArray{
+							JsonObj{
+								"type":  "Column",
+								"width": "10px",
+								"backgroundImage": JsonObj{
+									"url":      statusColorUrl,
+									"fillMode": "Repeat",
+								},
+							},
+							JsonObj{
+								"type":  "Column",
+								"width": "auto",
+								"items": JsonArray{
+									JsonObj{
+										"type":       "TextBlock",
+										"text":       summaryMessage,
+										"size":       "large",
+										"wrap":       true,
+										"isMarkdown": true,
+									},
+									JsonObj{
+										"type": "ColumnSet",
+										"columns": JsonArray{
+											JsonObj{
+												"type":  "Column",
+												"width": "stretch",
+												"items": JsonArray{
+													JsonObj{
+														"type":  "TextBlock",
+														"text":  "description",
+														"wrap":  true,
+														"color": "accent",
+													},
+												},
+											},
+											JsonObj{
+												"type":  "Column",
+												"width": "auto",
+												"items": JsonArray{
+													JsonObj{
+														"type":      "Image",
+														"url":       "https://adaptivecards.io/content/down.png",
+														"width":     "20px",
+														"id":        "collapseImage",
+														"isVisible": false,
+														"altText":   "collapsed",
+													},
+													JsonObj{
+														"type":      "Image",
+														"url":       "https://adaptivecards.io/content/up.png",
+														"width":     "20px",
+														"id":        "expandImage",
+														"altText":   "expanded",
+														"isVisible": true,
+													},
+												},
+											},
+										},
+										"selectAction": JsonObj{
+											"type": "Action.ToggleVisibility",
+											"targetElements": JsonArray{
+												"expand",
+												"collapseImage",
+												"expandImage",
+												"collapsedItems",
+												"expandedItems",
+											},
+										},
+									},
+
+									JsonObj{
+										"type":      "Container",
+										"id":        "expand",
+										"isVisible": false,
+										"items": JsonArray{
+											NameValueLabel("Build Number", fmt.Sprintf("%d", p.pipeline.Build.Number)),
+											NameValueLabel("Time", p.pipeline.Build.Started.String()),
+											NameValueLabel("Repo Link", ToUrlMarkdown(p.pipeline.Repo.Link)),
+											NameValueLabel("Branch", p.pipeline.Build.Branch),
+											NameValueLabel("Git Author", auther),
+											NameValueLabel("Commit Message Title", p.pipeline.Commit.Message.Title),
+											NameValueLabel("Commit Message Body", p.pipeline.Commit.Message.Body),
+										},
+									},
+								},
+							},
+						},
 					},
-				}},
-			},
-		}},
+				},
+			}},
+		},
 	}
 	return card
 }
 
 func ToUrlMarkdown(url string) string {
-	return fmt.Sprintf("[%s](%s)", url, url)
+	replacer := strings.NewReplacer("http://", "", "https://", "")
+	domainUrl := replacer.Replace(url)
+	return fmt.Sprintf("[%s](%s)", domainUrl, url)
 }
 
-func CreateNameValueLabel(name string, value string) CardColumnSet {
-	return CardColumnSet{
-		Type: "ColumnSet",
-		Columns: []CardColumn{
-			{
-				Type:                     "Column",
-				Width:                    "auto",
-				VerticalContentAlignment: "Center",
-				HorizontalAlignment:      "Left",
-				Items: []CardTextBlock{{
-					Type: "TextBlock",
-					Text: name,
-					Wrap: true,
-				}},
+func NameValueLabel(name string, value string) JsonObj {
+	return JsonObj{
+		"type": "ColumnSet",
+		"columns": JsonArray{
+			JsonObj{
+				"type":  "Column",
+				"width": "110px",
+				"items": JsonArray{
+					JsonObj{
+						"type": "TextBlock",
+						"text": name,
+					},
+				},
 			},
-			{
-				Type:                     "Column",
-				Width:                    "stretch",
-				VerticalContentAlignment: "Center",
-				HorizontalAlignment:      "Left",
-				Items: []CardTextBlock{{
-					Type: "TextBlock",
-					Text: value,
-					Wrap: true,
-				}},
-			}},
+			JsonObj{
+				"type":  "Column",
+				"width": "stretch",
+				"items": JsonArray{
+					JsonObj{
+						"type": "TextBlock",
+						"text": value,
+					},
+				},
+			},
+		},
 	}
 }
 

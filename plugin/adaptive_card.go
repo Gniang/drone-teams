@@ -13,5 +13,6 @@ type AdaptiveCardContent struct {
 	Schema  string        `json:"$schema"`
 	Type    string        `json:"type"`
 	Version string        `json:"version"`
+	Msteams interface{}   `json:"msteams"`
 	Body    []interface{} `json:"body"`
 }

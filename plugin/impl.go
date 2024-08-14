@@ -87,7 +87,27 @@ func CreateAcaptiveCard(p *Plugin) WebhookContent {
 		tagOrBranch = p.pipeline.Build.Tag
 	}
 
-	summaryMessage := fmt.Sprintf("*%s* %s (%s) by %s", p.pipeline.Build.Status, droneBuildUrl, tagOrBranch, auther)
+	titleMessage := fmt.Sprintf("*%s* [%s](%s)", p.pipeline.Build.Status, droneBuildUrl, p.pipeline.Build.Link)
+	detailMessage := fmt.Sprintf("(%s) by %s", tagOrBranch, auther)
+
+	descriptions := []JsonObj{
+		NameValueLabel("Build Number", fmt.Sprintf("%d", p.pipeline.Build.Number)),
+		NameValueLabel("Time", p.pipeline.Build.Started.String()),
+		NameValueLabel("Repo Link", ToUrlMarkdown(p.pipeline.Repo.Link)),
+		NameValueLabel("Branch", p.pipeline.Build.Branch),
+		NameValueLabel("Git Author", auther),
+		NameValueLabel("Commit Message Title", p.pipeline.Commit.Message.Title),
+		NameValueLabel("Commit Message Body", p.pipeline.Commit.Message.Body),
+	}
+	commitLink := GetCommitLink(p)
+	if commitLink != "" {
+		descriptions = append(descriptions,
+			NameValueLabel("Commit Link", ToUrlMarkdown(commitLink)),
+		)
+	}
+	descriptions = append(descriptions,
+		NameValueLabel("Build Link", ToUrlMarkdown(commitLink)),
+	)
 
 	const blueImageBase64 = "data:image/gif;base64,R0lGODlhCAABAIABAACZ/wacDywAAAAACAABAAACA4RvBQA7"
 	const redImageBase64 = "data:image/gif;base64,R0lGODlhCAABAIABAP8AAAacDywAAAAACAABAAACA4RvBQA7"
@@ -95,6 +115,9 @@ func CreateAcaptiveCard(p *Plugin) WebhookContent {
 	statusColorUrl := blueImageBase64
 	if p.pipeline.Build.Status == "failure" {
 		statusColorUrl = redImageBase64
+		descriptions = append(descriptions,
+			NameValueLabel("Failed Build Steps", strings.Join(p.pipeline.Build.FailedSteps, " ")),
+		)
 	}
 
 	// Create rich message card body
@@ -105,6 +128,9 @@ func CreateAcaptiveCard(p *Plugin) WebhookContent {
 				Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
 				Type:    "AdaptiveCard",
 				Version: "1.4",
+				Msteams: JsonObj{
+					"width": "Full",
+				},
 				Body: JsonArray{
 					JsonObj{
 						"type": "ColumnSet",
@@ -122,12 +148,35 @@ func CreateAcaptiveCard(p *Plugin) WebhookContent {
 								"width": "auto",
 								"items": JsonArray{
 									JsonObj{
-										"type":       "TextBlock",
-										"text":       summaryMessage,
-										"size":       "large",
-										"wrap":       true,
-										"isMarkdown": true,
+										"type": "ColumnSet",
+										"columns": JsonArray{
+											JsonObj{
+												"type":  "Column",
+												"width": "auto",
+												"items": JsonArray{
+													JsonObj{
+														"type":       "TextBlock",
+														"text":       titleMessage,
+														"size":       "large",
+														"weight":     "bolder",
+														"isMarkdown": true,
+													},
+												},
+											},
+											JsonObj{
+												"type":  "Column",
+												"width": "stretch",
+												"items": JsonArray{
+													JsonObj{
+														"type": "TextBlock",
+														"text": detailMessage,
+														"size": "small",
+													},
+												},
+											},
+										},
 									},
+
 									JsonObj{
 										"type": "ColumnSet",
 										"columns": JsonArray{
@@ -182,15 +231,7 @@ func CreateAcaptiveCard(p *Plugin) WebhookContent {
 										"type":      "Container",
 										"id":        "expand",
 										"isVisible": false,
-										"items": JsonArray{
-											NameValueLabel("Build Number", fmt.Sprintf("%d", p.pipeline.Build.Number)),
-											NameValueLabel("Time", p.pipeline.Build.Started.String()),
-											NameValueLabel("Repo Link", ToUrlMarkdown(p.pipeline.Repo.Link)),
-											NameValueLabel("Branch", p.pipeline.Build.Branch),
-											NameValueLabel("Git Author", auther),
-											NameValueLabel("Commit Message Title", p.pipeline.Commit.Message.Title),
-											NameValueLabel("Commit Message Body", p.pipeline.Commit.Message.Body),
-										},
+										"items":     descriptions,
 									},
 								},
 							},
@@ -215,11 +256,12 @@ func NameValueLabel(name string, value string) JsonObj {
 		"columns": JsonArray{
 			JsonObj{
 				"type":  "Column",
-				"width": "110px",
+				"width": "160px",
 				"items": JsonArray{
 					JsonObj{
-						"type": "TextBlock",
-						"text": name,
+						"type":   "TextBlock",
+						"text":   name,
+						"weight": "bolder",
 					},
 				},
 			},
@@ -230,6 +272,7 @@ func NameValueLabel(name string, value string) JsonObj {
 					JsonObj{
 						"type": "TextBlock",
 						"text": value,
+						"wrap": true,
 					},
 				},
 			},

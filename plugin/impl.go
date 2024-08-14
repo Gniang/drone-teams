@@ -88,7 +88,7 @@ func CreateAcaptiveCard(p *Plugin) WebhookContent {
 	}
 
 	titleMessage := fmt.Sprintf("*%s* [%s](%s)", p.pipeline.Build.Status, droneBuildUrl, p.pipeline.Build.Link)
-	detailMessage := fmt.Sprintf("(%s) by %s", tagOrBranch, auther)
+	detailMessage := fmt.Sprintf("%s by %s", tagOrBranch, auther)
 
 	descriptions := []JsonObj{
 		NameValueLabel("Build Number", fmt.Sprintf("%d", p.pipeline.Build.Number)),
@@ -148,37 +148,17 @@ func CreateAcaptiveCard(p *Plugin) WebhookContent {
 								"width": "auto",
 								"items": JsonArray{
 									JsonObj{
-										"type": "ColumnSet",
-										"columns": JsonArray{
-											JsonObj{
-												"type":                     "Column",
-												"width":                    "auto",
-												"verticalContentAlignment": "Bottom",
-												"items": JsonArray{
-													JsonObj{
-														"type":       "TextBlock",
-														"text":       titleMessage,
-														"size":       "large",
-														"weight":     "bolder",
-														"isMarkdown": true,
-													},
-												},
-											},
-											JsonObj{
-												"type":                     "Column",
-												"width":                    "stretch",
-												"verticalContentAlignment": "Bottom",
-												"items": JsonArray{
-													JsonObj{
-														"type": "TextBlock",
-														"text": detailMessage,
-														"size": "small",
-													},
-												},
-											},
-										},
+										"type":       "TextBlock",
+										"text":       titleMessage,
+										"size":       "large",
+										"weight":     "bolder",
+										"isMarkdown": true,
 									},
-
+									JsonObj{
+										"type": "TextBlock",
+										"text": detailMessage,
+										"size": "small",
+									},
 									JsonObj{
 										"type": "ColumnSet",
 										"columns": JsonArray{

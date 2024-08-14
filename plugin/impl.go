@@ -151,8 +151,9 @@ func CreateAcaptiveCard(p *Plugin) WebhookContent {
 										"type": "ColumnSet",
 										"columns": JsonArray{
 											JsonObj{
-												"type":  "Column",
-												"width": "auto",
+												"type":                     "Column",
+												"width":                    "auto",
+												"verticalContentAlignment": "Bottom",
 												"items": JsonArray{
 													JsonObj{
 														"type":       "TextBlock",
@@ -164,8 +165,9 @@ func CreateAcaptiveCard(p *Plugin) WebhookContent {
 												},
 											},
 											JsonObj{
-												"type":  "Column",
-												"width": "stretch",
+												"type":                     "Column",
+												"width":                    "stretch",
+												"verticalContentAlignment": "Bottom",
 												"items": JsonArray{
 													JsonObj{
 														"type": "TextBlock",

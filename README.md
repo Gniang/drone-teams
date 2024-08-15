@@ -3,7 +3,7 @@
 drone-teams is developed by Joel Damata.  
 https://github.com/jdamata/drone-teams
 
-It's added support for the AdaptiveCard format.
+It's added support for the AdaptiveCard format and new webhook(workflow / powerautomate).
 
 ### Drone Pipeline Usage
 
